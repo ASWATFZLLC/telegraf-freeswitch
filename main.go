@@ -44,7 +44,7 @@ func main() {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		status, _ := fetcher.FormatOutput(utils.JSONFormat)
+		status, _, _ := fetcher.FormatOutput(utils.JSONFormat)
 		if _, err := w.Write([]byte(status)); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
@@ -56,8 +56,20 @@ func main() {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, profiles := fetcher.FormatOutput(utils.JSONFormat)
+		_, profiles, _ := fetcher.FormatOutput(utils.JSONFormat)
 		if _, err := w.Write([]byte(profiles)); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	})
+
+	http.HandleFunc("/gateways/", func(w http.ResponseWriter, r *http.Request) {
+		if err := fetcher.GetData(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _, gateways := fetcher.FormatOutput(utils.JSONFormat)
+		if _, err := w.Write([]byte(gateways)); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	})
