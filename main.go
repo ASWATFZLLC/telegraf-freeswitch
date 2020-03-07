@@ -3,11 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/gin-gonic/gin"
+	"github.com/rif/telegraf-freeswitch/utils"
 	"log"
 	"net/http"
 	"os"
-
-	"github.com/rif/telegraf-freeswitch/utils"
+	"strconv"
 )
 
 var (
@@ -24,57 +25,91 @@ func handler(w http.ResponseWriter, route string) {
 
 func main() {
 	flag.Parse()
-	l := log.New(os.Stderr, "", 0)
 	fetcher, err := utils.NewFetcher(*host, *port, *pass)
 	if err != nil {
-		l.Print("error connecting to fs: ", err)
+		fmt.Print("error connecting to fs: ", err)
 	}
 	defer fetcher.Close()
 	if !*serve {
 		if err := fetcher.GetData(); err != nil {
-			l.Print(err.Error())
+			fmt.Print(err.Error())
 		}
 		fmt.Print(fetcher.FormatOutput(utils.InfluxFormat))
 		os.Exit(0)
 	}
-
-	http.HandleFunc("/status/", func(w http.ResponseWriter, r *http.Request) {
-		if err := fetcher.GetData(); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+	r := gin.Default()
+	r.GET("/status", func(c *gin.Context) {
+		fetcher, err = utils.NewFetcher(*host, *port, *pass)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
+		defer fetcher.Close()
+		if err := fetcher.GetData(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 		status, _, _ := fetcher.FormatOutput(utils.JSONFormat)
-		if _, err := w.Write([]byte(status)); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		c.String(http.StatusOK, status)
 	})
 
-	http.HandleFunc("/profiles/", func(w http.ResponseWriter, r *http.Request) {
-		if err := fetcher.GetData(); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+	r.GET("/profiles", func(c *gin.Context) {
+		fetcher, err = utils.NewFetcher(*host, *port, *pass)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		_, profiles, _ := fetcher.FormatOutput(utils.JSONFormat)
-		if _, err := w.Write([]byte(profiles)); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		defer fetcher.Close()
+		if err := fetcher.GetData(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
 		}
+		c.JSON(http.StatusOK, fetcher.SofiaProfiles)
 	})
 
-	http.HandleFunc("/gateways/", func(w http.ResponseWriter, r *http.Request) {
-		if err := fetcher.GetData(); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+	r.GET("/gateways", func(c *gin.Context) {
+		fetcher, err = utils.NewFetcher(*host, *port, *pass)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _, gateways := fetcher.FormatOutput(utils.JSONFormat)
-		if _, err := w.Write([]byte(gateways)); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		defer fetcher.Close()
+		if err := fetcher.GetData(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, fetcher.SofiaGateways)
+	})
+
+	r.GET("/gateways/check", func(c *gin.Context) {
+		fetcher, err = utils.NewFetcher(*host, *port, *pass)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		defer fetcher.Close()
+		if err := fetcher.GetData(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		globalStatus := true
+		for _, sofiaGateway := range fetcher.SofiaGateways {
+			if sofiaGateway.Status == "0" {
+				globalStatus = false
+			}
+			ping, _ := strconv.ParseFloat(sofiaGateway.Ping, 8)
+			if ping > 50 {
+				globalStatus = false
+			}
+		}
+		if globalStatus == true {
+			c.JSON(http.StatusOK, fetcher.SofiaGateways)
+		} else {
+			c.JSON(http.StatusInternalServerError, fetcher.SofiaGateways)
 		}
 	})
 
 	listen := fmt.Sprintf("%s:%d", *listenAddress, *listenPort)
 	fmt.Printf("Listening on %s...", listen)
-	log.Fatal(http.ListenAndServe(listen, nil))
+	log.Fatal(r.Run(listen))
 }

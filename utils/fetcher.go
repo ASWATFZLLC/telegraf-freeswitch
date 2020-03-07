@@ -16,8 +16,8 @@ const (
 type Fetcher struct {
 	conn          *eventsocket.Connection
 	sessions      *Sessions
-	sofiaProfiles []*SofiaProfile
-	sofiaGateways []*SofiaGateway
+	SofiaProfiles []*SofiaProfile
+	SofiaGateways []*SofiaGateway
 	cacheTime     time.Time
 }
 
@@ -46,6 +46,13 @@ type profile struct {
 	Name    string `json:"name"`
 	IP      string `json:"ip"`
 	Running string `json:"running"`
+}
+
+
+type gateway struct {
+	Name    string `json:"name"`
+	Ping      string `json:"ping"`
+	Status string `json:"status"`
 }
 
 func (f *Fetcher) Close() {
@@ -78,7 +85,7 @@ func (f *Fetcher) GetData() error {
 	if err != nil {
 		return fmt.Errorf("error sending xmlstatus: %v", err)
 	}
-	sofiaProfiles, err := ParseSofiaStatus(ev.Body)
+	SofiaProfiles, err := ParseSofiaStatus(ev.Body)
 	if err != nil {
 		return fmt.Errorf("error parsing xmlstatus: %v", err)
 	}
@@ -86,19 +93,19 @@ func (f *Fetcher) GetData() error {
 	if err != nil {
 		return fmt.Errorf("error sending xmlstatus gateways: %v", err)
 	}
-	sofiaGateways, err := ParseSofiaStatusGateways(ev.Body)
+	SofiaGateways, err := ParseSofiaStatusGateways(ev.Body)
 	if err != nil {
 		return fmt.Errorf("error parsing xmlstatus gateways: %v", err)
 	}
 	f.sessions = sessions
-	f.sofiaProfiles = sofiaProfiles
-	f.sofiaGateways = sofiaGateways
+	f.SofiaProfiles = SofiaProfiles
+	f.SofiaGateways = SofiaGateways
 	f.cacheTime = time.Now()
 	return nil
 }
 
 func (f *Fetcher) FormatOutput(format string) (string, string, string) {
-	if f.sessions == nil || f.sofiaProfiles == nil {
+	if f.sessions == nil || f.SofiaProfiles == nil {
 		return "", "", ""
 	}
 	if format == JSONFormat {
@@ -113,8 +120,8 @@ func (f *Fetcher) FormatOutput(format string) (string, string, string) {
 			RatePeak5min: f.sessions.Rate.Peak5min,
 		}
 		status, _ := json.MarshalIndent(s, "", " ")
-		pfs := make([]profile, len(f.sofiaProfiles))
-		for i, sofiaProfile := range f.sofiaProfiles {
+		pfs := make([]profile, len(f.SofiaProfiles))
+		for i, sofiaProfile := range f.SofiaProfiles {
 			pfs[i] = profile{
 				Name:    sofiaProfile.Name,
 				IP:      sofiaProfile.Address,
@@ -122,7 +129,18 @@ func (f *Fetcher) FormatOutput(format string) (string, string, string) {
 			}
 		}
 		profiles, _ := json.MarshalIndent(pfs, "", " ")
-		return string(status), string(profiles), ""
+		// Gateways
+		gtws := make([]gateway, len(f.SofiaGateways))
+		for i, sofiaGateway := range f.SofiaGateways {
+			gtws[i] = gateway{
+				Name:    sofiaGateway.Name,
+				Ping:      sofiaGateway.Ping,
+				Status: sofiaGateway.Status,
+			}
+		}
+		gateways, _ := json.MarshalIndent(gtws, "", " ")
+		fmt.Println(gateways)
+		return string(status), string(profiles), string(gateways)
 	}
 	status := fmt.Sprintf("freeswitch_sessions active=%d,peak=%d,peak_5min=%d,total=%d,rate_current=%d,rate_max=%d,rate_peak=%d,rate_peak_5min=%d\n",
 		f.sessions.Count.Active,
@@ -135,14 +153,14 @@ func (f *Fetcher) FormatOutput(format string) (string, string, string) {
 		f.sessions.Rate.Peak5min,
 	)
 	profiles := ""
-	for _, sofiaProfile := range f.sofiaProfiles {
+	for _, sofiaProfile := range f.SofiaProfiles {
 		profiles += fmt.Sprintf("freeswitch_profile_sessions,profile=%s,ip=%s running=%s\n",
 			sofiaProfile.Name,
 			sofiaProfile.Address,
 			sofiaProfile.Running)
 	}
 	gateways := ""
-	for _, sofiaGateway := range f.sofiaGateways {
+	for _, sofiaGateway := range f.SofiaGateways {
 		gateways += fmt.Sprintf("freeswitch_gateway,name=%s ping=%s,status=%s\n",
 			sofiaGateway.Name,
 			sofiaGateway.Ping,
