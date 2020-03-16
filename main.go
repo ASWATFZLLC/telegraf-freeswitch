@@ -97,6 +97,29 @@ func main() {
 			if sofiaGateway.Status == "0" {
 				globalStatus = false
 			}
+		}
+		if globalStatus == true {
+			c.JSON(http.StatusOK, fetcher.SofiaGateways)
+		} else {
+			c.JSON(http.StatusInternalServerError, fetcher.SofiaGateways)
+		}
+	})
+	r.GET("/gateways/check-latency", func(c *gin.Context) {
+		fetcher, err = utils.NewFetcher(*host, *port, *pass)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		defer fetcher.Close()
+		if err := fetcher.GetData(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		globalStatus := true
+		for _, sofiaGateway := range fetcher.SofiaGateways {
+			if sofiaGateway.Status == "0" {
+				globalStatus = false
+			}
 			ping, _ := strconv.ParseFloat(sofiaGateway.Ping, 8)
 			if ping > 50 {
 				globalStatus = false
@@ -108,7 +131,6 @@ func main() {
 			c.JSON(http.StatusInternalServerError, fetcher.SofiaGateways)
 		}
 	})
-
 	listen := fmt.Sprintf("%s:%d", *listenAddress, *listenPort)
 	fmt.Printf("Listening on %s...", listen)
 	log.Fatal(r.Run(listen))
