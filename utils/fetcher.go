@@ -46,6 +46,7 @@ type profile struct {
 	Name    string `json:"name"`
 	IP      string `json:"ip"`
 	Running string `json:"running"`
+	Data string `json:"data"`
 }
 
 

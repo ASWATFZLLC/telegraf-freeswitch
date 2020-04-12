@@ -29,10 +29,12 @@ type SofiaProfile struct {
 	Name    string
 	Address string
 	Running string
+	Data   string
 }
 
 func (sp *SofiaProfile) loadXMLProfile(p *Profile) error {
 	sp.Name = p.Name
+	sp.Data = p.Data
 	dataGroupSlice := dataParser.FindStringSubmatch(p.Data)
 	if len(dataGroupSlice) != 2 {
 		return errors.New("could not find address info in: " + p.Data)
