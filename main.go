@@ -121,7 +121,7 @@ func main() {
 				globalStatus = false
 			}
 			ping, _ := strconv.ParseFloat(sofiaGateway.Ping, 8)
-			if ping > 50 {
+			if ping > 100 {
 				globalStatus = false
 			}
 		}
